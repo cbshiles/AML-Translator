@@ -1,6 +1,11 @@
 #include <string>
 #include "io.hpp"
 
+/*
+!!! Can use std::string.push_back(char c) !!!!
+!!! 
+!!! 
+ */
 std::string wholeFile;
 int i=0;
 std::string reader(){
@@ -130,13 +135,141 @@ Chunk* chunker(){
   } while(c.size());
 }
 
-int main(int argc, char *argv[]){
+#DEFINE TEXT 1
+#DEFINE VAR 2
 
-  wholeFile = readF(argv[1]);
+class Mold{
+
+  <std::string>std::vector lists[];
+  int first, last;
+
+  bool wasnt(std::string var, int type){
+    if (last != type){
+      if (! last) first = type;
+      last = type;
+      lists[type].push_back(var);
+      return true;
+    } else return false
+  }
+
+public:
   
+  Mold(){
+    //#llokup array of objects
+    lists = {NULL, vector<std::string>, vector<std::string>};
+    subMolds = vector<Mold>
+    last = first = 0;
+    //# look up initializer lists
+  }
+
+  bool addVar(std::string var){return wasnt(VAR);}
+
+  bool addText(std::string txt){return wasnt(TEXT);}
+
+  void addSub(Mold m){subMolds.push_back(m);}
+
+  bool firstWasVar(){return first == VAR;}
+
+  bool hasSubs(){return subMolds.length() > 0;}
+
+  bool isSimple()
+  {return !hasSubs() && first == TEXT && !lists[VAR].length();}
+};
+
+class Stack{
+  std::vector<std::string> stack;
+  bool header = false;
+
+  void push(std::string opener){
+    header = false;
+    if (word.length){
+      if (opener == "<"){
+	wad += "<"+word+">";
+      } else if (opener == "{"){
+	
+      } else if (opener == "["){
+	wad += "<"+word
+      } else ; //bad move
+    } else if (header && opener == "<"){
+      stack.push_back(opener);
+    } else ; //anonymous enclosing error
+  }
+
+  void pop(std::string closer){
+    Enclosing inner = stack.pop_back();
+    if (! inner.match(closer)) return; //mismatched enclosings
+    header = (closer == "]");
+    inner.close()
+  }
+  
+};
+
+Mold* mld;
+std::string wad = "";
+std::string pad = "";
+std::string word = "";
+
+void newWord(std::string w){
+  closeWord();
+  word = w;
+}
+
+void closeWord(){
+  if (word.length || pad.length)
+    wad += word+pad;
+}
+//not sure bout this one
+void addAds(){ //add wad and pad as text, if they exist
+  if (wad.length || pad.length)
+    mld->addText(wad+pad)
+}
+
+void closeText(){
+  if (word.length || pad.length)
+    mld->addText(wad+word+pad);
+}
+
+Mold* run(){
+  mld = new Mold();
   Chunk* ck;
-  while (ck = chunker())
-    std::cout << ck->type << " : " << ck->it << std::endl;
-  
+  bool isWord;
+  int lines = 0;
+  while (ck = chunker()){
+    isWord = (! ck->type);
+    if (ck->type == 2){//quote
+      std::string str = ck->it;
+      char fc = str[0]; //the quote char 
+      str = str.substr(1, str.length -1); //take off quotes
+      if (fc == '|'){
+	isWord = true;
+      } else if (fc == '`'){
+	//do its thing
+	closeText();
+	mld.addVar(str);
+      } else return 0; //keep this
+    }
+    if (isWord) newWord(str);
+    else if (ck->type == 3){ //whitespace
+      if ("\n".equals(ck->it)) lines++;
+      pad += ck->it;
+    }
+    else if (ck->type == 4){//opener
+      stack.push(ck->it);
+    }
+    else if (ck->type == 5){//closer
+      closeWord();
+      stack.pop(ck->it);
+    } else {
+      std::cout << "Maltyped!" << ck->type << std::endl;
+      return 0;
+    }
+  }
+  return mld;
+}
+  //    std::cout << ck->type << " : " << ck->it << std::endl;
+
+int main(int argc, char *argv[]){
+  wholeFile = readF(argv[1]);
+  run();
   return 0;
 }
