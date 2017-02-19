@@ -1,5 +1,13 @@
 #include <string>
+#include <vector>
+
 #include "io.hpp"
+#include "rapidjson/document.h"
+#include "rapidjson/writer.h"
+#include "rapidjson/stringbuffer.h"
+
+#define pl(t) (std::cout << t << std::endl)
+#define pls(t) (std::cout << #t << " " << t << std::endl)
 
 /*
 !!! Can use std::string.push_back(char c) !!!!
@@ -21,11 +29,15 @@ char spec_len = 12;
 
 int cats[] = {3, 3, 3, 4, 5, 4, 5, 2, 4, 2, 5, 1};
 
+
+
 int sp_search(char c){
   //checks if c is a special char
   //returns its index in spec[] if so, -1 otherwise
 
   int mid, low = 0, high = spec_len-1;
+
+
 
   while (high > low){
     mid = (high+low)/2;
@@ -43,7 +55,7 @@ int sp_search(char c){
       else return mid;
     }
   }
-  return 0;
+  return -1;
 }
 
 int category(std::string c){
@@ -88,8 +100,6 @@ Chunk* chunker(){
 
   do {
     cat = category(c);
-
-    //    std::cout << "char, cat: " << c <<", "<<cat<<std::endl;
     
     if (!cat) glob += c; //normal std::string
     
@@ -112,20 +122,20 @@ Chunk* chunker(){
       //This guarantees that glob is clear for use in rest of bracket
 
       if (cat == 2) {//quote std::string
-	glob += c; //c is the quote std::string
 	std::string ci;
 	ci = reader();
+	int rt = (c=="`"?2:0);
 	  while(ci.size()){
 	
 	  if (ci == "~"){
 	    std::string cz = reader();
-	    if (! cz.size()) { fin = true; return new Chunk (0, glob + ci);}
+	    if (! cz.size()) { fin = true; return new Chunk (rt, glob + ci);}
 	    else glob += ((cz==c || cz==ci)?cz:ci+cz);
 	  }
-	  else if (ci == c) return new Chunk (0, glob+c);
+	  else if (ci == c) return new Chunk (rt, glob);
 	  else glob += ci;
 	  ci = reader();
-	  } fin = true; return new Chunk (0, glob);
+	  } fin = true; return new Chunk (rt, glob);
 	
       } else {
 	return new Chunk(cat, c);
@@ -135,141 +145,287 @@ Chunk* chunker(){
   } while(c.size());
 }
 
-#DEFINE TEXT 1
-#DEFINE VAR 2
+#define TEXT 1
+#define VAR 2
+
+#include <map>
 
 class Mold{
 
-  <std::string>std::vector lists[];
+  std::vector<std::string> lists[2];
   int first, last;
 
   bool wasnt(std::string var, int type){
     if (last != type){
       if (! last) first = type;
       last = type;
-      lists[type].push_back(var);
+      lists[type-1].push_back(var);
       return true;
-    } else return false
+    } else return false;
   }
 
 public:
+  std::map<std::string, Mold*> subMolds;
+  std::string wad, pad, word;
   
-  Mold(){
-    //#llokup array of objects
-    lists = {NULL, vector<std::string>, vector<std::string>};
-    subMolds = vector<Mold>
+  Mold* parent;
+  
+  Mold(Mold* m):
+    parent(m)
+  {
     last = first = 0;
-    //# look up initializer lists
   }
 
-  bool addVar(std::string var){return wasnt(VAR);}
+  bool addVar(std::string var){
+    return wasnt(var, VAR);
+  }
 
-  bool addText(std::string txt){return wasnt(TEXT);}
+  bool addText(std::string txt){return wasnt(txt, TEXT);}
 
-  void addSub(Mold m){subMolds.push_back(m);}
+  Mold* addSub(std::string name){
+    Mold *m = new Mold(this);
+    subMolds[name] = m;
+    return m;
+  }
 
+  std::vector<std::string> getList(int i){
+    return lists[i-1];
+  }
+  
   bool firstWasVar(){return first == VAR;}
 
-  bool hasSubs(){return subMolds.length() > 0;}
+  bool hasSubs(){return subMolds.size() > 0;}
 
   bool isSimple()
-  {return !hasSubs() && first == TEXT && !lists[VAR].length();}
+  {return !hasSubs() && first == TEXT && ! lists[VAR-1].size();}
+
+  void setWord(std::string w){
+    wad += word+pad;
+    word = w;
+  }
+
+  void clearWord(){word=pad="";}
+
+  void closeText (){// only used for backquotes and eof
+    if (word.length() || wad.length()){
+      addText(wad+word+pad);
+      wad=word=pad="";
+    }
+  }
+  
+  void print(){
+
+    int i, j;
+    for (i=0; i<2; i++){
+      std::string p = i?"Vars:":"Texts";
+      pl(p);
+      for (j=0; j<lists[i].size(); j++){
+	pl(lists[i][j]);
+	pl("~~~~~~~~~~~~~~~~~~~~~~~~~");
+      }}
+
+    for (auto mi = subMolds.begin(); mi != subMolds.end(); ++mi){
+      pl("SubMold:");
+      pl(mi->first);
+      mi->second->print();
+    }
+    //#iterate through a map
+    //#print keys
+    //#and then call this print function on the values
+  }
+};
+
+struct Enclosing{
+
+  virtual std::string open(){return "";}
+
+  virtual void mutate(){}
+
+  virtual std::string close() = 0;
+
+  virtual bool match(std::string m) = 0;
+};
+
+Mold* mld;
+
+struct MoldEnclosing : public Enclosing{
+
+  MoldEnclosing(std::string n){
+    mld = mld->addSub(n);
+  }
+
+  std::string close(){
+    mld->closeText();
+    mld = mld->parent;
+    return "";
+  }
+
+  bool match(std::string m){return "}" == m;}
+};
+
+struct TagEnclosing : public Enclosing{
+  bool angle;
+  std::string name;
+  
+  TagEnclosing(std::string n, bool a):
+    angle(a), name(n){}
+
+  std::string open(){
+    return "<"+name+(angle?">":" ");
+  }
+
+  void mutate(){angle = true;}
+
+  bool match(std::string m)
+  {return (angle?">":"]") == m;}
+  
+  std::string close(){
+    return angle?"</"+name+">":">";
+  }
+  
 };
 
 class Stack{
-  std::vector<std::string> stack;
-  bool header = false;
+  std::vector<Enclosing*> closings;
+  bool header;
+
+public:
+
+  Stack():
+    header(false){}
+
+  void update(bool b){header = header && b;}
 
   void push(std::string opener){
-    header = false;
-    if (word.length){
+
+    if (header){
+      header = false;
       if (opener == "<"){
-	wad += "<"+word+">";
-      } else if (opener == "{"){
-	
-      } else if (opener == "["){
-	wad += "<"+word
-      } else ; //bad move
-    } else if (header && opener == "<"){
-      stack.push_back(opener);
+	closings.back()->mutate();
+	return;
+      } else closings.pop_back();
+    }
+
+    if (mld->word.length()){
+	mld->wad += openEnclosing(opener);
     } else ; //anonymous enclosing error
   }
 
   void pop(std::string closer){
-    Enclosing inner = stack.pop_back();
-    if (! inner.match(closer)) return; //mismatched enclosings
+    Enclosing *inner = closings.back();
+    if (! inner->match(closer)) return; //mismatched enclosings
+    mld->setWord("");
     header = (closer == "]");
-    inner.close()
+    if (! header) closings.pop_back();
+    mld->wad += header?">":inner->close();
   }
   
+  std::string openEnclosing(std::string opener){
+    Enclosing *gnu;
+
+    std::string word = mld->word;
+    mld->clearWord();
+
+    if (opener == "{")
+      gnu = new MoldEnclosing(word);
+    else
+      gnu = new TagEnclosing(word, opener=="<");
+    
+    closings.push_back(gnu);
+    return gnu->open();
+  }
 };
 
-Mold* mld;
-std::string wad = "";
-std::string pad = "";
-std::string word = "";
-
-void newWord(std::string w){
-  closeWord();
-  word = w;
-}
-
-void closeWord(){
-  if (word.length || pad.length)
-    wad += word+pad;
-}
-//not sure bout this one
-void addAds(){ //add wad and pad as text, if they exist
-  if (wad.length || pad.length)
-    mld->addText(wad+pad)
-}
-
-void closeText(){
-  if (word.length || pad.length)
-    mld->addText(wad+word+pad);
-}
+Stack stack;
 
 Mold* run(){
-  mld = new Mold();
   Chunk* ck;
-  bool isWord;
-  int lines = 0;
+  int type, lines = 0;
+  std::string str;
+
+  mld = new Mold(0);
   while (ck = chunker()){
-    isWord = (! ck->type);
-    if (ck->type == 2){//quote
-      std::string str = ck->it;
-      char fc = str[0]; //the quote char 
-      str = str.substr(1, str.length -1); //take off quotes
-      if (fc == '|'){
-	isWord = true;
-      } else if (fc == '`'){
-	//do its thing
-	closeText();
-	mld.addVar(str);
-      } else return 0; //keep this
+    str = ck->it;
+    type = ck->type;
+    stack.update(type == 3 || (type == 4 && str == "<"));
+    if (!type){ // i aint got no type
+      mld->setWord(str);
     }
-    if (isWord) newWord(str);
-    else if (ck->type == 3){ //whitespace
-      if ("\n".equals(ck->it)) lines++;
-      pad += ck->it;
-    }
-    else if (ck->type == 4){//opener
-      stack.push(ck->it);
-    }
-    else if (ck->type == 5){//closer
-      closeWord();
-      stack.pop(ck->it);
-    } else {
-      std::cout << "Maltyped!" << ck->type << std::endl;
-      return 0;
+    else {
+      if (type == 2){//back quote
+	mld->closeText(); 
+	mld->addVar(str);
+      }
+      else if (type == 3){ //whitespace
+	if (str == "\n") lines++;
+	mld->pad += str;
+      }
+      else if (type == 4){//opener
+	stack.push(str);
+      }
+      else if (type == 5){//closer
+	stack.pop(str);
+      } else {
+	std::cout << "Your Chunk Was Maltyped! " << type << std::endl;
+	return 0;
+      }
     }
   }
+  mld->closeText();
   return mld;
 }
-  //    std::cout << ck->type << " : " << ck->it << std::endl;
+
+
+rapidjson::Document jdoc;
+rapidjson::Document::AllocatorType& alloc = jdoc.GetAllocator();
+
+rapidjson::Value* jArray(std::vector<std::string> lzt){
+  rapidjson::Value *arr = new rapidjson::Value(rapidjson::kArrayType);
+  for (int i=0; i<lzt.size(); i++)
+    arr->PushBack(rapidjson::StringRef(lzt[i].c_str()), alloc);
+  return arr;
+}
+
+rapidjson::Value* cycle(Mold *m){
+  rapidjson::Value* v = new rapidjson::Value(rapidjson::kObjectType);  
+  v->AddMember("firstWasVar", m->firstWasVar(), alloc);
+  v->AddMember("vars", *jArray(m->getList(VAR)), alloc);
+  v->AddMember("texts", *jArray(m->getList(TEXT)), alloc);
+
+  rapidjson::Value* subs = new rapidjson::Value(rapidjson::kObjectType);
+  for (auto mi = m->subMolds.begin(); mi != m->subMolds.end(); ++mi){
+    subs->AddMember(rapidjson::StringRef(mi->first.c_str()), *cycle(mi->second), alloc);
+  }
+  v->AddMember("subs", *subs, alloc);
+  return v;
+}
+
+std::string toJSON(Mold *m){
+
+  jdoc.SetObject(); //change jdoc from an array to an obj
+
+  rapidjson::Value* rootMold = cycle(m);
+    
+  jdoc.AddMember("firstWasVar", m->firstWasVar(), alloc);
+  jdoc.AddMember("vars", *jArray(m->getList(VAR)), alloc);
+  jdoc.AddMember("texts", *jArray(m->getList(TEXT)), alloc);
+
+  rapidjson::Value* subs = new rapidjson::Value(rapidjson::kObjectType);
+  for (auto mi = m->subMolds.begin(); mi != m->subMolds.end(); ++mi){
+    subs->AddMember(rapidjson::StringRef(mi->first.c_str()), *cycle(mi->second), alloc);
+  }
+  jdoc.AddMember("subs", *subs, alloc);
+
+  // 3. Stringify the DOM
+  rapidjson::StringBuffer buffer2;
+  rapidjson::Writer<rapidjson::StringBuffer> writer2(buffer2);
+  jdoc.Accept(writer2);
+
+  return buffer2.GetString();
+}
 
 int main(int argc, char *argv[]){
   wholeFile = readF(argv[1]);
-  run();
+  pl(toJSON(run()));
   return 0;
 }

@@ -1,6 +1,12 @@
-|!doctype~| HTML|[]
+!DOCTYPE~ html[]
 
-html~<
+html<
 	head<>
-	body<>
->sdsdsd
+	body<
+	p[attrib="dirt"]<This the text.>
+	`varpar`
+	>
+>
+par{
+	p<Par of the var>
+}
