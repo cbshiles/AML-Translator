@@ -29,3 +29,9 @@ void writeF(std::string fname, std::string data){
   wf.close();
   return;
 }
+
+void nix2dows(std::string fname){
+  std::string om = readF(fname);
+  //om.replaceString "\n" -> "\r\n"
+  writeF(fname, om);
+}

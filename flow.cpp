@@ -7,6 +7,7 @@
 #include "rapidjson/stringbuffer.h"
 
 #define pl(t) (std::cout << t << std::endl)
+#define pel(t) (std::cerr << t << std::endl)
 #define pls(t) (std::cout << #t << " " << t << std::endl)
 
 /*
@@ -17,7 +18,6 @@
 std::string wholeFile;
 int i=0;
 std::string reader(){
-  //  std::cout << "test "  << wholeFile.size() << (i < wholeFile.size()) << std::endl;
   if (i < wholeFile.size())
     return std::string(1, wholeFile[i++]);
   return "";
@@ -244,6 +244,8 @@ struct Enclosing{
   virtual std::string close() = 0;
 
   virtual bool match(std::string m) = 0;
+
+  virtual std::string toString() = 0;
 };
 
 Mold* mld;
@@ -261,6 +263,8 @@ struct MoldEnclosing : public Enclosing{
   }
 
   bool match(std::string m){return "}" == m;}
+
+  std::string toString(){return "mold}";}
 };
 
 struct TagEnclosing : public Enclosing{
@@ -274,14 +278,20 @@ struct TagEnclosing : public Enclosing{
     return "<"+name+(angle?">":" ");
   }
 
-  void mutate(){angle = true;}
+  void mutate(){
+    angle = true;
+  }
 
   bool match(std::string m)
-  {return (angle?">":"]") == m;}
+  {
+    return (angle?">":"]") == m;
+  }
   
   std::string close(){
     return angle?"</"+name+">":">";
   }
+
+  std::string toString(){return name+(angle?">":"]");}
   
 };
 
@@ -289,31 +299,45 @@ class Stack{
   std::vector<Enclosing*> closings;
   bool header;
 
+  void print(){
+    for (Enclosing *e : closings){
+      std::cerr << e->toString() << " ";
+    }
+    std::cerr << std::endl;
+  }
+
 public:
 
   Stack():
     header(false){}
 
-  void update(bool b){header = header && b;}
+  void update(bool b){
+    if (!b && header){
+      header = 0;
+      closings.pop_back();
+    }
+  }
 
   void push(std::string opener){
 
     if (header){
+      closings.back()->mutate();
       header = false;
-      if (opener == "<"){
-	closings.back()->mutate();
-	return;
-      } else closings.pop_back();
     }
-
-    if (mld->word.length()){
+    else if (mld->word.length()){
 	mld->wad += openEnclosing(opener);
     } else ; //anonymous enclosing error
   }
 
   void pop(std::string closer){
+    if (! closings.size()){
+      pel("Empty stack!"); return;
+    }
     Enclosing *inner = closings.back();
-    if (! inner->match(closer)) return; //mismatched enclosings
+    if (! inner->match(closer)) {
+      pel( "mismatched enclosings");
+      return;
+    }
     mld->setWord("");
     header = (closer == "]");
     if (! header) closings.pop_back();
@@ -345,6 +369,7 @@ Mold* run(){
 
   mld = new Mold(0);
   while (ck = chunker()){
+
     str = ck->it;
     type = ck->type;
     stack.update(type == 3 || (type == 4 && str == "<"));
@@ -366,7 +391,7 @@ Mold* run(){
       else if (type == 5){//closer
 	stack.pop(str);
       } else {
-	std::cout << "Your Chunk Was Maltyped! " << type << std::endl;
+	pel("Your Chunk Was Maltyped!");
 	return 0;
       }
     }
@@ -425,6 +450,8 @@ std::string toJSON(Mold *m){
 }
 
 int main(int argc, char *argv[]){
+  std::cout << "translate.sh sites/community/domains/subs/slack/" << std::endl;
+
   wholeFile = readF(argv[1]);
   pl(toJSON(run()));
   return 0;
