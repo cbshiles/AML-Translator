@@ -450,8 +450,6 @@ std::string toJSON(Mold *m){
 }
 
 int main(int argc, char *argv[]){
-  std::cout << "translate.sh sites/community/domains/subs/slack/" << std::endl;
-
   wholeFile = readF(argv[1]);
   pl(toJSON(run()));
   return 0;
