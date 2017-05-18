@@ -1,3 +1,1 @@
-Make src dir
-change comp.sh so it reads src from src,
-and puts execs in bin
+make AML create real html files when no vars are present
