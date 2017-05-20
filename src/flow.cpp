@@ -6,6 +6,7 @@
 #include "rapidjson/writer.h"
 #include "rapidjson/stringbuffer.h"
 
+#define po(y) (std::cout << y)
 #define pl(t) (std::cout << t << std::endl)
 #define pel(t) (std::cerr << t << std::endl)
 #define pls(t) (std::cout << #t << " " << t << std::endl)
@@ -18,8 +19,9 @@
 std::string wholeFile;
 int i=0;
 std::string reader(){
-  if (i < wholeFile.size())
+  if (i < wholeFile.size()){
     return std::string(1, wholeFile[i++]);
+  }
   return "";
 }
 
@@ -204,6 +206,10 @@ public:
     word = w;
   }
 
+  std::string firstText(){
+    return lists[TEXT-1][0];
+  }
+
   void clearWord(){word=pad="";}
 
   void closeText (){// only used for backquotes and eof
@@ -331,7 +337,7 @@ public:
 
   void pop(std::string closer){
     if (! closings.size()){
-      pel("Empty stack!"); return;
+      pel("Empty stack! Trying to use a " << closer); return;
     }
     Enclosing *inner = closings.back();
     if (! inner->match(closer)) {
@@ -451,6 +457,12 @@ std::string toJSON(Mold *m){
 
 int main(int argc, char *argv[]){
   wholeFile = readF(argv[1]);
-  pl(toJSON(run()));
+
+  Mold *mold = run();
+  if (! mold->isSimple())
+    pl('j' << toJSON(mold));
+  else{
+    pl('h' << mold->firstText());
+  }
   return 0;
 }

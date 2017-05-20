@@ -1,1 +1,4 @@
-make AML create real html files when no vars are present
+have the new way of returning the translation be only an option, and the old fashion way be the defualt
+http://stackoverflow.com/questions/865668/how-to-parse-command-line-arguments-in-cbar quotes add newlines to html code
+
+add an actual error handling system, so you can trace errors back to particular lines & things
