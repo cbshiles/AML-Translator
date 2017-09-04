@@ -18,6 +18,7 @@
  */
 std::string wholeFile;
 int i=0;
+int lines;
 std::string reader(){
   if (i < wholeFile.size()){
     return std::string(1, wholeFile[i++]);
@@ -319,7 +320,7 @@ public:
 
   void update(bool b){
     if (!b && header){
-      header = 0;
+      header = false;
       closings.pop_back();
     }
   }
@@ -337,7 +338,7 @@ public:
 
   void pop(std::string closer){
     if (! closings.size()){
-      pel("Empty stack! Trying to use a " << closer); return;
+      pel("On line "<<lines<<":Empty stack! Trying to use a " << closer); return;
     }
     Enclosing *inner = closings.back();
     if (! inner->match(closer)) {
@@ -370,7 +371,8 @@ Stack stack;
 
 Mold* run(){
   Chunk* ck;
-  int type, lines = 0;
+  int type;
+  type = lines = 0;
   std::string str;
 
   mld = new Mold(0);

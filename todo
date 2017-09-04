@@ -1,4 +1,9 @@
+make a emacs mode so you can format this stuff!! much needed
+
 have the new way of returning the translation be only an option, and the old fashion way be the defualt
 http://stackoverflow.com/questions/865668/how-to-parse-command-line-arguments-in-cbar quotes add newlines to html code
 
 add an actual error handling system, so you can trace errors back to particular lines & things
+
+just [] seems to actually make a <></> sorta thing ! :/ (nahh i dont think so)
+
