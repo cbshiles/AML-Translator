@@ -1,1 +1,3 @@
-g++ src/flow.cpp -I rapidjson/include -o bin/go -std=c++0x
+c++ src/flow.cpp -I jsoncpp/include/ -c -std=c++0x
+mv flow.o bin/
+c++ -o bin/go bin/flow.o bin/jsoncpp.o

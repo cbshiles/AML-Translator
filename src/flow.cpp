@@ -1,118 +1,126 @@
-#include <string>
-#include <vector>
-
 #include "io.hpp"
-#include "rapidjson/document.h"
-#include "rapidjson/writer.h"
-#include "rapidjson/stringbuffer.h"
+#include "string.hpp"
+#include "json/json.h"
+#include <map>
+using namespace std;
 
-#define po(y) (std::cout << y)
-#define pl(t) (std::cout << t << std::endl)
-#define pel(t) (std::cerr << t << std::endl)
-#define pls(t) (std::cout << #t << " " << t << std::endl)
+struct SpecChar {
+  char ch;
+  string name;
+  int category;
+  SpecChar(char c, string n, int i):
+    ch(c), name(n), category(i){}
+};
 
-/*
-!!! Can use std::string.push_back(char c) !!!!
-!!! 
-!!! 
- */
-std::string wholeFile;
-int i=0;
-int lines;
-std::string reader(){
-  if (i < wholeFile.size()){
-    return std::string(1, wholeFile[i++]);
+vector<SpecChar> allChars;
+map<char, SpecChar*> charMap;
+void setChars(){
+  allChars.push_back(SpecChar('\t', "tab", 3));
+  allChars.push_back(SpecChar('\n', "newline", 3));
+  allChars.push_back(SpecChar(' ', "space", 3));
+  allChars.push_back(SpecChar('<', "open angle", 4));
+  allChars.push_back(SpecChar('>', "close angle", 5));
+  allChars.push_back(SpecChar('[', "open bracket", 4));
+  allChars.push_back(SpecChar(']', "close bracket", 5));
+  allChars.push_back(SpecChar('`', "back quotes", 2));
+  allChars.push_back(SpecChar('{', "open curly", 4));
+  allChars.push_back(SpecChar('|', "bar", 2));
+  allChars.push_back(SpecChar('}', "close curly", 5));
+  allChars.push_back(SpecChar('~', "tilde", 1));
+  for (int i=0; i<allChars.size(); i++){
+    SpecChar* sc = &allChars[i];
+    charMap[sc->ch] = sc;
   }
-  return "";
 }
 
-//0: Normal, 1: Escape, 2: Quotes, 3: Whitespace, 4: Openers, 5: Closers
-char spec[] = "\t\n <>[]`{|}~";
-char spec_len = 12;
+string conF = "aml.conf";
+CharReader cRead;
 
-int cats[] = {3, 3, 3, 4, 5, 4, 5, 2, 4, 2, 5, 1};
+vector<string> getProps(){
+  if (!readable(conF)){
+    string orig = "";
+    vector<SpecChar>::iterator ptr;
+    for (ptr=allChars.begin(); ptr < allChars.end(); ptr++){
+      orig += ptr->name + " = true\n";
+    }
+    writeF(conF, orig);
+  }
+  return readLzt(conF);
+}
 
-
-
-int sp_search(char c){
-  //checks if c is a special char
-  //returns its index in spec[] if so, -1 otherwise
-
-  int mid, low = 0, high = spec_len-1;
-
-
-
-  while (high > low){
-    mid = (high+low)/2;
-
-    if (c <= spec[low])
-      return c == spec[low] ? low : -1;
-  
-    else if (c >= spec[high])
-      return c == spec[high] ? high : -1;
-
-    else {
-      char diff = c - spec[mid];
-      if (diff < 0) high = mid-1;
-      else if (diff > 0) low = mid+1;
-      else return mid;
+int findCharByName(std::string name){
+  for (int i=0; i<allChars.size(); i++){
+    if (allChars[i].name.compare(name) == 0){
+      return i;
     }
   }
   return -1;
 }
 
-int category(std::string c){
-  int dex = sp_search(c[0]);
-  if (dex == -1) return 0;
-  else return cats[dex];
+void getSpecChars(){
+  setChars();
+  vector<SpecChar> specChars;
+  vector<string> props = getProps();
+  for (int i=0; i<props.size(); i++){
+    string prop = props[i];
+    int d = prop.find("=");
+    std::string key = trim(prop.substr(0, d));
+    std::string val = trim(prop.substr(d+1));
+    if (val.find("true") != string::npos){
+      int sc = findCharByName(key);
+      if (sc >= 0){
+	specChars.push_back(allChars[sc]);
+      }
+    }
+  }
+}
+
+int category(char c){
+  if (charMap.count(c) == 0) {return 0;}
+  return charMap.at(c)->category;
 }
 
 struct Chunk {
-
   int type;
   std::string it;
-
-  //# initializer list
-  Chunk(int t, std::string i){
-    type = t;
-    it = i;
-  }
+  Chunk(int t, std::string i): type(t), it(i){}
 };
 
-std::string onDeck;
-int onDeckCat;
 bool fin = false;
 std::string glob;
+char onDeck;
+int onDeckCat;
 
 Chunk* chunker(){
   if (fin) return 0;
 
   glob = "";
 
-  std::string c; int cat;
-  if (onDeck.size()) {
+  char c; int cat;
+  if (onDeck != '\0') {
     c = onDeck;
     cat = onDeckCat;
-    onDeck = "";
-  } else {
-    c = reader();
-    if (! c.size()) return 0;
-  }
+    onDeck = '\0';
+  } else if (!cRead.isEof()){
+    c = cRead.get();
+  } else return 0;
 
   //0: Normal, 1: Escape, 2: Quotes, 3: Whitespace, 4: Openers, 5: Closers
 
   do {
     cat = category(c);
     
-    if (!cat) glob += c; //normal std::string
+    if (!cat) glob.push_back(c); //normal char
     
-    else if (cat == 1){ //escape std::string
-      std::string cn = reader();
-      if (! cn.size()){
+    else if (cat == 1){ //escape char
+      if (cRead.isEof()){
 	fin = true;
 	return new Chunk(0, glob);
+      } else {
+	char cn = cRead.get();
+	if (! category(cn)) glob.push_back(c); //If next char needn't ne escaped, treat escape char as normal char
+	glob.push_back(cn);
       }
-      else glob += category(cn) ? cn:c+cn;
     }
 
     else { //chunk breakers
@@ -124,28 +132,35 @@ Chunk* chunker(){
 	}
       //This guarantees that glob is clear for use in rest of bracket
 
-      if (cat == 2) {//quote std::string
-	std::string ci;
-	ci = reader();
-	int rt = (c=="`"?2:0);
-	  while(ci.size()){
-	
-	  if (ci == "~"){
-	    std::string cz = reader();
-	    if (! cz.size()) { fin = true; return new Chunk (rt, glob + ci);}
-	    else glob += ((cz==c || cz==ci)?cz:ci+cz);
+      if (cat == 2) {//quote char
+	int rt = (c=='`'?2:0);
+	while(!cRead.isEof()){
+	  char ci = cRead.get();	
+	  if (ci == '~'){
+	    if (cRead.isEof()){
+	      fin = true;
+	      glob.push_back(ci);
+	      return new Chunk (rt, glob);
+	    } else {
+	      char cz = cRead.get();
+	      //within quotes, ~ only escapes the type of quotes & itself
+	      if (!(cz==c || cz=='~')) glob.push_back(ci);
+	      glob.push_back(cz);
+	    }
 	  }
 	  else if (ci == c) return new Chunk (rt, glob);
-	  else glob += ci;
-	  ci = reader();
-	  } fin = true; return new Chunk (rt, glob);
+	  else glob.push_back(ci);
+	}
+	fin = true;
+	return new Chunk (rt, glob);
 	
       } else {
-	return new Chunk(cat, c);
+	return new Chunk(cat, string(1, c));
       }
     }
-    c = reader();
-  } while(c.size());
+    c = cRead.isEof() ? '\0' : cRead.get();
+  } while(c != '\0');
+  return 0;
 }
 
 #define TEXT 1
@@ -233,7 +248,6 @@ public:
 
     for (auto mi = subMolds.begin(); mi != subMolds.end(); ++mi){
       pl("SubMold:");
-      pl(mi->first);
       mi->second->print();
     }
     //#iterate through a map
@@ -302,6 +316,7 @@ struct TagEnclosing : public Enclosing{
   
 };
 
+int lines = 0;
 class Stack{
   std::vector<Enclosing*> closings;
   bool header;
@@ -338,7 +353,7 @@ public:
 
   void pop(std::string closer){
     if (! closings.size()){
-      pel("On line "<<lines<<":Empty stack! Trying to use a " << closer); return;
+      pel("On line "<<lines<<":Empty stak! Trying to use a " << closer); return;
     }
     Enclosing *inner = closings.back();
     if (! inner->match(closer)) {
@@ -367,7 +382,7 @@ public:
   }
 };
 
-Stack stack;
+Stack stak;
 
 Mold* run(){
   Chunk* ck;
@@ -376,11 +391,10 @@ Mold* run(){
   std::string str;
 
   mld = new Mold(0);
-  while (ck = chunker()){
-
+  while ((ck = chunker())){
     str = ck->it;
     type = ck->type;
-    stack.update(type == 3 || (type == 4 && str == "<"));
+    stak.update(type == 3 || (type == 4 && str == "<"));
     if (!type){ // i aint got no type
       mld->setWord(str);
     }
@@ -394,10 +408,10 @@ Mold* run(){
 	mld->pad += str;
       }
       else if (type == 4){//opener
-	stack.push(str);
+	stak.push(str);
       }
       else if (type == 5){//closer
-	stack.pop(str);
+	stak.pop(str);
       } else {
 	pel("Your Chunk Was Maltyped!");
 	return 0;
@@ -408,57 +422,43 @@ Mold* run(){
   return mld;
 }
 
-
-rapidjson::Document jdoc;
-rapidjson::Document::AllocatorType& alloc = jdoc.GetAllocator();
-
-rapidjson::Value* jArray(std::vector<std::string> lzt){
-  rapidjson::Value *arr = new rapidjson::Value(rapidjson::kArrayType);
-  for (int i=0; i<lzt.size(); i++)
-    arr->PushBack(rapidjson::StringRef(lzt[i].c_str()), alloc);
-  return arr;
+Json::Value makeList(vector<string> lzt){
+  Json::Value jsonArray = Json::arrayValue;
+  for (int i=0; i<lzt.size(); i++){
+    jsonArray.append(lzt[i]);
+  }
+  return jsonArray;
 }
 
-rapidjson::Value* cycle(Mold *m){
-  rapidjson::Value* v = new rapidjson::Value(rapidjson::kObjectType);  
-  v->AddMember("firstWasVar", m->firstWasVar(), alloc);
-  v->AddMember("vars", *jArray(m->getList(VAR)), alloc);
-  v->AddMember("texts", *jArray(m->getList(TEXT)), alloc);
+const string toString(Json::Value* json){
+  Json::StreamWriterBuilder builder;
+  // builder["indentation"] = ""; // If you want whitespace-less output
+  return Json::writeString(builder, *json);
+}
 
-  rapidjson::Value* subs = new rapidjson::Value(rapidjson::kObjectType);
-  for (auto mi = m->subMolds.begin(); mi != m->subMolds.end(); ++mi){
-    subs->AddMember(rapidjson::StringRef(mi->first.c_str()), *cycle(mi->second), alloc);
+Json::Value* layer(Mold *m){
+  Json::Value* root = new Json::Value;
+  (*root)["firstWasVar"] = m->firstWasVar();
+  (*root)["texts"] = makeList(m->getList(TEXT));
+  (*root)["vars"] = makeList(m->getList(VAR));
+  int i = 0;
+  Json::Value subs = Json::objectValue;
+  for (auto mi = m->subMolds.begin(); mi != m->subMolds.end(); ++mi, i++){
+    Json::Value* sub = layer(mi->second);
+    subs[mi->first] = *sub;
   }
-  v->AddMember("subs", *subs, alloc);
-  return v;
+  (*root)["subs"] = subs;
+  return root;
 }
 
 std::string toJSON(Mold *m){
-
-  jdoc.SetObject(); //change jdoc from an array to an obj
-
-  rapidjson::Value* rootMold = cycle(m);
-    
-  jdoc.AddMember("firstWasVar", m->firstWasVar(), alloc);
-  jdoc.AddMember("vars", *jArray(m->getList(VAR)), alloc);
-  jdoc.AddMember("texts", *jArray(m->getList(TEXT)), alloc);
-
-  rapidjson::Value* subs = new rapidjson::Value(rapidjson::kObjectType);
-  for (auto mi = m->subMolds.begin(); mi != m->subMolds.end(); ++mi){
-    subs->AddMember(rapidjson::StringRef(mi->first.c_str()), *cycle(mi->second), alloc);
-  }
-  jdoc.AddMember("subs", *subs, alloc);
-
-  // 3. Stringify the DOM
-  rapidjson::StringBuffer buffer2;
-  rapidjson::Writer<rapidjson::StringBuffer> writer2(buffer2);
-  jdoc.Accept(writer2);
-
-  return buffer2.GetString();
+  Json::Value* root = layer(m);
+ return toString(root);
 }
 
 int main(int argc, char *argv[]){
-  wholeFile = readF(argv[1]);
+  getSpecChars(); 
+  cRead = CharReader(argv[1]);
 
   Mold *mold = run();
   if (! mold->isSimple())
