@@ -1,3 +1,3 @@
-c++ src/flow.cpp -I jsoncpp/include/ -c -std=c++0x
+c++ src/flow.cpp -I /usr/local/include/jsoncpp -c -std=c++0x
 mv flow.o bin/
-c++ -o bin/go bin/flow.o bin/jsoncpp.o
+c++ -o bin/go bin/flow.o -L/usr/local/lib/libjsoncpp.a /usr/local/lib/libjsoncpp.so

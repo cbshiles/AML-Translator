@@ -1,4 +1,5 @@
 using namespace std;
+#include <algorithm>
 
 // trim from start (in place)
 static inline void ltrim(std::string &s) {
